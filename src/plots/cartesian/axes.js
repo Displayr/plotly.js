@@ -941,6 +941,12 @@ function roundDTick(roughDTick, base, roundingSet) {
     return base * Lib.roundUp(roughDTick / base, roundingSet);
 }
 
+function pad0(i, n) {
+    var s = String(i);
+    while(s.length < n) s = '0' + s;
+    return s;
+}
+
 // autoTicks: calculate best guess at pleasant ticks for this axis
 // inputs:
 //      ax - an axis object
@@ -989,7 +995,7 @@ axes.autoTicks = function(ax, roughDTick) {
                 // replace Sunday with Monday for ISO and Monday-based formats
                 var len = ax.tick0.length;
                 var lastD = +ax.tick0[len - 1];
-                ax.tick0 = ax.tick0.substring(0, len - 2) + String(lastD + 1);
+                ax.tick0 = ax.tick0.substring(0, len - 2) + pad0(lastD + 1, 2);
             }
         } else if(roughX2 > ONEHOUR) {
             ax.dtick = roundDTick(roughDTick, ONEHOUR, roundBase24);
