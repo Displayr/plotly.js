@@ -589,6 +589,11 @@ axes.calcTicks = function calcTicks(ax, opts) {
     var endTick = exRng[1];
     // check for reversed axis
     var axrev = (rng[1] < rng[0]);
+    var minRange = Math.min(rng[0], rng[1]);
+    var maxRange = Math.max(rng[0], rng[1]);
+    var dtick = ax.dtick;
+    var tickformat = axes.getTickFormat(ax);
+    var isPeriod = ax.ticklabelmode === 'period';
 
     // No visible ticks? Quit.
     // I've only seen this on category axes with all categories off the edge.
@@ -600,7 +605,63 @@ axes.calcTicks = function calcTicks(ax, opts) {
             Math.min(ax._categories.length - 0.5, endTick);
     }
 
-    var isDLog = (ax.type === 'log') && !(isNumeric(ax.dtick) || ax.dtick.charAt(0) === 'L');
+    var isDLog = (ax.type === 'log') && !(isNumeric(dtick) || dtick.charAt(0) === 'L');
+
+    var definedDelta;
+    if(isPeriod && tickformat) {
+        if(
+            !(/%[fLQsSMX]/.test(tickformat))
+            // %f: microseconds as a decimal number [000000, 999999]
+            // %L: milliseconds as a decimal number [000, 999]
+            // %Q: milliseconds since UNIX epoch
+            // %s: seconds since UNIX epoch
+            // %S: second as a decimal number [00,61]
+            // %M: minute as a decimal number [00,59]
+            // %X: the locale’s time, such as %-I:%M:%S %p
+        ) {
+            if(
+                /%[HI]/.test(tickformat)
+                // %H: hour (24-hour clock) as a decimal number [00,23]
+                // %I: hour (12-hour clock) as a decimal number [01,12]
+            ) definedDelta = ONEHOUR;
+            else if(
+                /%p/.test(tickformat) // %p: either AM or PM
+            ) definedDelta = HALFDAY;
+            else if(
+                /%[Aadejuwx]/.test(tickformat)
+                // %A: full weekday name
+                // %a: abbreviated weekday name
+                // %d: zero-padded day of the month as a decimal number [01,31]
+                // %e: space-padded day of the month as a decimal number [ 1,31]
+                // %j: day of the year as a decimal number [001,366]
+                // %u: Monday-based (ISO 8601) weekday as a decimal number [1,7]
+                // %w: Sunday-based weekday as a decimal number [0,6]
+                // %x: the locale’s date, such as %-m/%-d/%Y
+            ) definedDelta = ONEDAY;
+            else if(
+                /%[UVW]/.test(tickformat)
+                // %U: Sunday-based week of the year as a decimal number [00,53]
+                // %V: ISO 8601 week of the year as a decimal number [01, 53]
+                // %W: Monday-based week of the year as a decimal number [00,53]
+            ) definedDelta = ONEWEEK;
+            else if(
+                /%[Bbm]/.test(tickformat)
+                // %B: full month name
+                // %b: abbreviated month name
+                // %m: month as a decimal number [01,12]
+            ) definedDelta = ONEAVGMONTH;
+            else if(
+                /%[q]/.test(tickformat)
+                // %q: quarter of the year as a decimal number [1,4]
+            ) definedDelta = ONEAVGQUARTER;
+            else if(
+                /%[Yy]/.test(tickformat)
+                // %Y: year with century as a decimal number, such as 1999
+                // %y: year without century as a decimal number [00,99]
+            ) definedDelta = ONEAVGYEAR;
+        }
+    }
+    if(definedDelta) dtick = definedDelta;
 
     var tickVals;
     function generateTicks() {
@@ -609,7 +670,7 @@ axes.calcTicks = function calcTicks(ax, opts) {
         tickVals = [];
         for(var x = ax._tmin;
                 (axrev) ? (x >= endTick) : (x <= endTick);
-                x = axes.tickIncrement(x, ax.dtick, axrev, ax.calendar)) {
+                x = axes.tickIncrement(x, dtick, axrev, ax.calendar)) {
             // prevent infinite loops - no more than one tick per pixel,
             // and make sure each value is different from the previous
             if(tickVals.length > maxTicks || x === xPrevious) break;
@@ -629,12 +690,11 @@ axes.calcTicks = function calcTicks(ax, opts) {
 
     generateTicks();
 
-    var isPeriod = ax.ticklabelmode === 'period';
     if(isPeriod) {
         // add one label to show pre tick0 period
         tickVals.unshift({
             minor: false,
-            value: axes.tickIncrement(tickVals[0].value, ax.dtick, !axrev, ax.caldendar)
+            value: axes.tickIncrement(tickVals[0].value, dtick, !axrev, ax.caldendar)
         });
     }
 
@@ -698,65 +758,6 @@ axes.calcTicks = function calcTicks(ax, opts) {
     // whole string of these so we should care what the previous date head was!)
     ax._prevDateHead = '';
     ax._inCalcTicks = true;
-
-    var minRange = Math.min(rng[0], rng[1]);
-    var maxRange = Math.max(rng[0], rng[1]);
-
-    var definedDelta;
-    var tickformat = axes.getTickFormat(ax);
-    if(isPeriod && tickformat) {
-        if(
-            !(/%[fLQsSMX]/.test(tickformat))
-            // %f: microseconds as a decimal number [000000, 999999]
-            // %L: milliseconds as a decimal number [000, 999]
-            // %Q: milliseconds since UNIX epoch
-            // %s: seconds since UNIX epoch
-            // %S: second as a decimal number [00,61]
-            // %M: minute as a decimal number [00,59]
-            // %X: the locale’s time, such as %-I:%M:%S %p
-        ) {
-            if(
-                /%[HI]/.test(tickformat)
-                // %H: hour (24-hour clock) as a decimal number [00,23]
-                // %I: hour (12-hour clock) as a decimal number [01,12]
-            ) definedDelta = ONEHOUR;
-            else if(
-                /%p/.test(tickformat) // %p: either AM or PM
-            ) definedDelta = HALFDAY;
-            else if(
-                /%[Aadejuwx]/.test(tickformat)
-                // %A: full weekday name
-                // %a: abbreviated weekday name
-                // %d: zero-padded day of the month as a decimal number [01,31]
-                // %e: space-padded day of the month as a decimal number [ 1,31]
-                // %j: day of the year as a decimal number [001,366]
-                // %u: Monday-based (ISO 8601) weekday as a decimal number [1,7]
-                // %w: Sunday-based weekday as a decimal number [0,6]
-                // %x: the locale’s date, such as %-m/%-d/%Y
-            ) definedDelta = ONEDAY;
-            else if(
-                /%[UVW]/.test(tickformat)
-                // %U: Sunday-based week of the year as a decimal number [00,53]
-                // %V: ISO 8601 week of the year as a decimal number [01, 53]
-                // %W: Monday-based week of the year as a decimal number [00,53]
-            ) definedDelta = ONEWEEK;
-            else if(
-                /%[Bbm]/.test(tickformat)
-                // %B: full month name
-                // %b: abbreviated month name
-                // %m: month as a decimal number [01,12]
-            ) definedDelta = ONEAVGMONTH;
-            else if(
-                /%[q]/.test(tickformat)
-                // %q: quarter of the year as a decimal number [1,4]
-            ) definedDelta = ONEAVGQUARTER;
-            else if(
-                /%[Yy]/.test(tickformat)
-                // %Y: year with century as a decimal number, such as 1999
-                // %y: year without century as a decimal number [00,99]
-            ) definedDelta = ONEAVGYEAR;
-        }
-    }
 
     var ticksOut = [];
     var i;
